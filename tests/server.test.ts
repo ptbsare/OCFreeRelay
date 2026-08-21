@@ -362,6 +362,8 @@ describe("gateway HTTP entry", () => {
       ).json()) as { count: number; usingBaseline: boolean };
       expect(fm.count).toBeGreaterThan(0);
       expect(fm.usingBaseline).toBe(true);
+      const refreshRes = await fetch(`http://127.0.0.1:${port}/admin/api/free-models/refresh`, { method: "POST" });
+      expect(refreshRes.status).toBe(409);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

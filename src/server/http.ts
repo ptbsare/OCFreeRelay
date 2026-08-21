@@ -20,7 +20,7 @@ import {
   type ProbeResult,
 } from "../proxy/probe.js";
 import { SettingsStore, type GatewaySettings } from "../settings/store.js";
-import { FreeModelRegistry } from "../proxy/freeModels.js";
+import { AUTO_REFRESH_FREE_MODELS, FreeModelRegistry } from "../proxy/freeModels.js";
 import {
   parseUsageFromObject,
   parseUsageFromSseBuffer,
@@ -201,22 +201,23 @@ export async function createApp(opts?: {
     await workerStats.load().catch(() => {});
   }
 
-  // Free-model registry: baseline = currently-known free ids; a background
-  // scrape of the Zen pricing page keeps it current. Injected in tests.
+  // The authenticated Zen view is the source of truth. Public-source refresh is
+  // opt-in because it can omit account-visible free models. Injected registries
+  // and Vitest runs never hit the network.
   const freeModels = opts?.freeModels ?? new FreeModelRegistry();
   if (opts?.freeModels) {
     // Test-injected registry: caller owns seeding; never hit the network.
-  } else if (process.env.VITEST) {
-    await freeModels.loadCache().catch(() => {});
   } else {
     await freeModels.loadCache().catch(() => {});
-    freeModels.refresh().then((s) => {
-      if (s.lastError) {
-        console.warn(`[free-models] refresh failed, using ${s.count} known-free: ${s.lastError}`);
-      } else {
-        console.log(`[free-models] scraped ${s.count} free models from ${"opencode.ai/docs/zen"}`);
-      }
-    });
+    if (AUTO_REFRESH_FREE_MODELS && !process.env.VITEST) {
+      freeModels.refresh().then((s) => {
+        if (s.lastError) {
+          console.warn(`[free-models] refresh failed, using ${s.count} known-free: ${s.lastError}`);
+        } else {
+          console.log(`[free-models] refreshed ${s.count} free models from configured source`);
+        }
+      });
+    }
   }
 
   const port =
@@ -298,8 +299,17 @@ async function handleRequest(
     sendJson(res, 200, freeModels.status());
     return;
   }
-  // Force a re-scrape of the Zen pricing page
+  // Public-source refresh is disabled unless explicitly enabled and reconciled
+  // with the authenticated Zen view.
   if (method === "POST" && path === "/admin/api/free-models/refresh") {
+    if (!AUTO_REFRESH_FREE_MODELS) {
+      sendJson(res, 409, {
+        error: {
+          message: "Free-model refresh is disabled; update the authenticated Zen baseline first or set OCFREERELAY_AUTO_REFRESH_FREE_MODELS=true after reconciliation.",
+        },
+      });
+      return;
+    }
     const status = await freeModels.refresh();
     sendJson(res, 200, status);
     return;

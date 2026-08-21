@@ -18,11 +18,14 @@ const PRICING_HTML = `<html><body>
 <table><thead><tr><th>Model</th><th>Input</th><th>Output</th><th>Cached Read</th><th>Cached Write</th></tr></thead><tbody>
 <tr><td>Big Pickle</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
 <tr><td>Ox Alpha Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
+<tr><td>DeepSeek V4 Flash Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
 <tr><td>MiMo-V2.5 Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
 <tr><td>Hy3 Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
+<tr><td>Laguna S 2.1 Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
+<tr><td>Muse Spark 1.2</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
+<tr><td>Muse Spark 1.2 Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
 <tr><td>Nemotron 3 Ultra Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
 <tr><td>Nemotron 3.5 Lightning Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
-<tr><td>Muse Spark 1.2 Contributor Free</td><td>Free</td><td>Free</td><td>Free</td><td>-</td></tr>
 <tr><td>MiniMax M3</td><td>$0.30</td><td>$1.20</td><td>$0.06</td><td>-</td></tr>
 <tr><td>Claude Opus 4.5</td><td>$5.00</td><td>$25.00</td><td>$0.50</td><td>$6.25</td></tr>
 </tbody></table>
@@ -35,13 +38,17 @@ describe("parseFreeModelIds", () => {
     const ids = parseFreeModelIds(PRICING_HTML);
     expect(ids.sort()).toEqual([
       "big-pickle",
+      "deepseek-v4-flash-free",
       "hy3-free",
+      "laguna-s-2.1-free",
       "mimo-v2.5-free",
-      "muse-spark-1.2-contributor-free",
+      "muse-spark-1.2",
+      "muse-spark-1.2-free",
       "nemotron-3-ultra-free",
       "nemotron-3.5-lightning-free",
       "x-preview-f-free",
     ]);
+  });
 
   it("ignores non-pricing tables (no Cached Write header)", () => {
     const html = `<table><thead><tr><th>Model</th><th>Model ID</th></tr></thead>
@@ -51,10 +58,15 @@ describe("parseFreeModelIds", () => {
 
   it("normalizes display names to model ids", () => {
     expect(normalizeModelName("Ox Alpha Free")).toBe("x-preview-f-free");
+    expect(normalizeModelName("DeepSeek V4 Flash Free")).toBe("deepseek-v4-flash-free");
     expect(normalizeModelName(" MiMo-V2.5 Free ")).toBe("mimo-v2.5-free");
+    expect(normalizeModelName("Hy3 Free")).toBe("hy3-free");
+    expect(normalizeModelName("Laguna S 2.1 Free")).toBe("laguna-s-2.1-free");
+    expect(normalizeModelName("Muse Spark 1.2")).toBe("muse-spark-1.2");
+    expect(normalizeModelName("Muse Spark 1.2 Free")).toBe("muse-spark-1.2-free");
     expect(normalizeModelName("Nemotron 3 Ultra Free")).toBe("nemotron-3-ultra-free");
     expect(normalizeModelName("Nemotron 3.5 Lightning Free")).toBe("nemotron-3.5-lightning-free");
-    expect(normalizeModelName("Muse Spark 1.2 Contributor Free")).toBe("muse-spark-1.2-contributor-free");
+  });
 });
 
 describe("FreeModelRegistry", () => {
@@ -62,6 +74,9 @@ describe("FreeModelRegistry", () => {
     const reg = new FreeModelRegistry();
     expect(reg.has("big-pickle")).toBe(true);
     expect(reg.has("x-preview-f-free")).toBe(true);
+    expect(reg.has("deepseek-v4-flash-free")).toBe(true);
+    expect(reg.has("laguna-s-2.1-free")).toBe(true);
+    expect(reg.has("muse-spark-1.2")).toBe(true);
     expect(reg.has("gpt-5.5-pro")).toBe(false);
     expect(reg.has("claude-opus-5")).toBe(false);
     expect(reg.has("")).toBe(false);
@@ -82,7 +97,7 @@ describe("FreeModelRegistry", () => {
 
       // Successful scrape
       let status = await reg.refresh(async () => new Response(PRICING_HTML, { status: 200 }));
-      expect(status.count).toBe(7);
+      expect(status.count).toBe(10);
       expect(status.lastError).toBeNull();
       expect(status.usingBaseline).toBe(false);
       expect(reg.has("big-pickle")).toBe(true);

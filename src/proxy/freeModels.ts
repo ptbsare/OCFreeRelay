@@ -1,11 +1,10 @@
 /**
  * Free-model registry for OCFreeRelay.
  *
- * Determines which upstream models are "free" by scraping the OpenCode Zen
- * pricing page (https://opencode.ai/docs/zen) and keeping every model whose
- * Input & Output price columns are marked "Free". The HTTP layer serves ONLY
- * these models (both /v1/models and /v1/chat/completions) so no paid model is
- * ever exposed to clients — that is the point of this project.
+ * Determines which upstream models are "free" from the official OpenCode Zen
+ * free-model view and keeps every model in that view. The HTTP layer serves
+ * ONLY these models (both /v1/models and /v1/chat/completions) so no paid model
+ * is ever exposed to clients — that is the point of this project.
  *
  * Resilience:
  *  - The parsed result is cached to data/free-models.json (last success).
@@ -19,28 +18,40 @@ import { dirname, resolve } from "node:path";
 
 export const ZEN_PRICING_URL =
   process.env.OCFREERELAY_PRICING_URL || "https://opencode.ai/docs/zen";
+/** Public-source refresh is opt-in because authenticated Zen can show more free models. */
+export const AUTO_REFRESH_FREE_MODELS = process.env.OCFREERELAY_AUTO_REFRESH_FREE_MODELS === "true";
 
 /**
- * Baseline free-model ids (snapshot of the Zen pricing page "Free" rows).
- * Used as the starting set / last-resort fallback; refreshed by scraping.
+ * Baseline free-model ids (snapshot of the authenticated Zen free-model view).
+ * Used as the starting set / last-resort fallback; refreshed only by an explicitly
+ * configured source that has been reconciled with the authenticated view.
  */
 export const KNOWN_FREE_MODELS: string[] = [
   "big-pickle",
-  "x-preview-f-free",
+  "deepseek-v4-flash-free",
   "mimo-v2.5-free",
   "hy3-free",
+  "laguna-s-2.1-free",
+  "muse-spark-1.2",
+  "muse-spark-1.2-free",
   "nemotron-3-ultra-free",
   "nemotron-3.5-lightning-free",
-  "muse-spark-1.2-contributor-free",
+  "x-preview-f-free",
 ];
+
+/** Display names whose official model ids are not derivable by normalization. */
+const MODEL_ID_ALIASES: Record<string, string> = {
+  "ox-alpha-free": "x-preview-f-free",
+};
 
 /** "DeepSeek V4 Flash Free" -> "deepseek-v4-flash-free" (lowercase, dash-separated). */
 export function normalizeModelName(name: string): string {
-  return name
+  const normalized = name
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9.]+/g, "-")
     .replace(/^-+|-+$/g, "");
+  return MODEL_ID_ALIASES[normalized] ?? normalized;
 }
 
 function stripTags(s: string): string {
@@ -55,7 +66,7 @@ function stripTags(s: string): string {
 }
 
 /**
- * Parse free model ids out of the OpenCode Zen pricing page HTML.
+ * Parse free model ids from the configured official HTML source.
  * Pure + unit-testable: finds the table whose header includes Model + Cached
  * Write, then keeps rows whose Input & Output columns are "Free".
  */
@@ -163,10 +174,7 @@ export class FreeModelRegistry {
     );
   }
 
-  /**
-   * Scrape the pricing page and update the free set. On failure the previous
-   * set is kept (disk / memory / baseline) and the error is recorded.
-   */
+  /** Refresh from the configured official source; preserve the baseline on failure. */
   async refresh(fetchImpl?: typeof fetch): Promise<FreeModelStatus> {
     const fetcher = fetchImpl ?? globalThis.fetch;
     try {
