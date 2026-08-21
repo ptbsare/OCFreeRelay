@@ -143,7 +143,13 @@ export class FreeModelRegistry {
     };
   }
 
-  /** Restore the last successful scrape from disk (so a restart keeps it). */
+  /**
+   * Restore the last successful scrape from disk (so a restart keeps it).
+   *
+   * A cache may have been written by an older version of the baseline.  Do
+   * not let that stale snapshot hide newly-known free models after an update;
+   * the baseline is a safe allowlist and is therefore always retained.
+   */
   async loadCache(): Promise<void> {
     try {
       const text = await readFile(this.cachePath, "utf8");
@@ -152,7 +158,7 @@ export class FreeModelRegistry {
         ? parsed.ids.filter((x): x is string => typeof x === "string")
         : [];
       if (ids.length) {
-        this._ids = new Set(ids);
+        this._ids = new Set([...KNOWN_FREE_MODELS, ...ids]);
         this.lastFetchedAt = typeof parsed.fetchedAt === "string" ? parsed.fetchedAt : null;
         this.lastError = null;
       }

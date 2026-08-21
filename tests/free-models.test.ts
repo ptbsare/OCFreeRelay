@@ -2,7 +2,7 @@
  * Unit tests for the free-model scraper + registry.
  */
 import { describe, expect, it } from "vitest";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -133,6 +133,36 @@ describe("FreeModelRegistry", () => {
       expect(status.lastError).toBeTruthy();
       expect(status.usingBaseline).toBe(true);
       expect(reg.has("big-pickle")).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps newly-added baseline models when loading an older cache", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ocfr-fm-cache-merge-"));
+    try {
+      await writeFile(
+        join(dir, "free-models.json"),
+        JSON.stringify({
+          fetchedAt: "2026-08-21T09:49:14.656Z",
+          ids: [
+            "big-pickle",
+            "mimo-v2.5-free",
+            "muse-spark-1.2-contributor-free",
+          ],
+        }),
+        "utf8"
+      );
+
+      const reg = new FreeModelRegistry({ cachePath: join(dir, "free-models.json") });
+      await reg.loadCache();
+
+      // The old cache remains usable, while models added to the code baseline
+      // are no longer hidden until somebody manually deletes the cache.
+      expect(reg.has("muse-spark-1.2-contributor-free")).toBe(true);
+      expect(reg.has("deepseek-v4-flash-free")).toBe(true);
+      expect(reg.has("laguna-s-2.1-free")).toBe(true);
+      expect(reg.has("x-preview-f-free")).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
