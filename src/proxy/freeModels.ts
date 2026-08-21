@@ -26,13 +26,12 @@ export const ZEN_PRICING_URL =
  */
 export const KNOWN_FREE_MODELS: string[] = [
   "big-pickle",
-  "deepseek-v4-flash-free",
+  "x-preview-f-free",
   "mimo-v2.5-free",
-  "laguna-s-2.1-free",
-  "ling-3.0-flash-free",
-  "longcat-2.0-free",
-  "north-mini-code-free",
+  "hy3-free",
   "nemotron-3-ultra-free",
+  "nemotron-3.5-lightning-free",
+  "muse-spark-1.2-contributor-free",
 ];
 
 /** "DeepSeek V4 Flash Free" -> "deepseek-v4-flash-free" (lowercase, dash-separated). */
