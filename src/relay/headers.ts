@@ -3,7 +3,7 @@
  * Adapted from OmniRoute open-sse/utils/opencodeHeaders.ts
  */
 
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 const OPENCODE_HEADER_KEYS = [
   "x-opencode-session",
@@ -13,6 +13,38 @@ const OPENCODE_HEADER_KEYS = [
 ] as const;
 
 const AGENT_METADATA_HEADER_KEYS = ["x-session-id", "x-title"] as const;
+
+const OPENCODE_ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+// OpenCode CLI generates x-opencode-session / x-opencode-request locally:
+// a 6-byte (12 hex) timestamp+seq prefix and a 14-char base62 random suffix.
+// The Zen free tier now validates this exact format, so a bare UUID no longer
+// passes. See https://linux.do/t/topic/2912664 (FreeTierError 403).
+let lastTs = 0;
+let ctr = 0;
+
+function genOpencodeId(desc: boolean): string {
+  const ts = Date.now();
+  ctr = ts !== lastTs ? 1 : ctr + 1;
+  lastTs = ts;
+  let v = BigInt(ts) * 0x1000n + BigInt(ctr);
+  if (desc) v = ~v;
+  let time = "";
+  for (let i = 0; i < 6; i++) {
+    time += Number((v >> BigInt(40 - 8 * i)) & 0xffn).toString(16).padStart(2, "0");
+  }
+  const bytes = randomBytes(14);
+  const rnd = Array.from(bytes).map((b) => OPENCODE_ID_CHARS[b % 62]).join("");
+  return time + rnd;
+}
+
+function opencodeSessionId(): string {
+  return "ses_" + genOpencodeId(true);
+}
+
+function opencodeRequestId(): string {
+  return "msg_" + genOpencodeId(false);
+}
 
 export type CliDefaults = {
   userAgent: string;
@@ -35,8 +67,8 @@ function applyCliDefaults(headers: Record<string, string>, cliDefaults: CliDefau
   }
   headers["x-opencode-client"] ||= cliDefaults.client;
   headers["x-opencode-project"] ||= cliDefaults.project;
-  headers["x-opencode-request"] ||= randomUUID();
-  headers["x-opencode-session"] ||= randomUUID();
+  headers["x-opencode-request"] ||= opencodeRequestId();
+  headers["x-opencode-session"] ||= opencodeSessionId();
 }
 
 /**
@@ -76,7 +108,7 @@ export function forwardOpencodeClientHeaders(
     if (sessionAffinity) {
       headers["x-opencode-session"] = sessionAffinity;
       if (!headers["x-opencode-request"]) {
-        headers["x-opencode-request"] = randomUUID();
+        headers["x-opencode-request"] = opencodeRequestId();
       }
     }
   }

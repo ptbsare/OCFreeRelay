@@ -160,7 +160,7 @@ describe("header construction", () => {
     expect(headers["x-session-id"]).toBe("sess-1");
     expect(headers["x-opencode-session"]).toBe("sess-1");
     expect(headers["x-opencode-request"]).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      /^msg_[0-9a-f]{12}[0-9A-Za-z]{14}$/
     );
   });
 
@@ -179,8 +179,12 @@ describe("header construction", () => {
     expect(h["User-Agent"]).toBe("opencode-cli/1.0.0");
     expect(h["x-opencode-client"]).toBe("cli");
     expect(h["x-opencode-project"]).toBe("default");
-    expect(h["x-opencode-request"]).toBeTruthy();
-    expect(h["x-opencode-session"]).toBeTruthy();
+    expect(h["x-opencode-request"]).toMatch(
+      /^msg_[0-9a-f]{12}[0-9A-Za-z]{14}$/
+    );
+    expect(h["x-opencode-session"]).toMatch(
+      /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/
+    );
   });
 
   it("client-supplied headers win over CLI defaults", () => {
